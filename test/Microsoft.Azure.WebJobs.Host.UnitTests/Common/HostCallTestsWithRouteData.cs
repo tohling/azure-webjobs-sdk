@@ -1,21 +1,23 @@
-﻿using Microsoft.Azure.WebJobs.Host.Config;
-using Microsoft.Azure.WebJobs.Host.TestCommon;
-using Microsoft.WindowsAzure.Storage.Queue;
-using Newtonsoft.Json;
+﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Azure.WebJobs.Host.Config;
+using Microsoft.Azure.WebJobs.Host.TestCommon;
+using Microsoft.Azure.WebJobs.Host.Triggers;
+using Newtonsoft.Json;
 using Xunit;
 
 namespace Microsoft.Azure.WebJobs.Host.UnitTests
 {
     // Unit test for exercising Host.Call passing route data. 
     public class HostCallTestsWithRouteData
-    {
+    {        
         public class FunctionBase
         {
+            // Derived functions write to this variable, test harness can read from it.
             public StringBuilder _sb = new StringBuilder();
         }
 
@@ -39,7 +41,7 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
             }
 
             public void Func(
-                [QueueTrigger("foo")] Payload trigger,
+                [FakeQueueTrigger] Payload trigger,
                 [Test(Path = "{k1}-x")] string p1,
                 [Test(Path = "{k2}-y")] string p2,
                 int k1)
@@ -47,7 +49,6 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
                 _sb.AppendFormat("{0};{1};{2}", p1, p2, k1);
             }
         }
-
 
         public class TestAttribute : Attribute
         {
@@ -61,8 +62,17 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
             {
                 IExtensionRegistry extensions = context.Config.GetService<IExtensionRegistry>();
                 var bf = context.Config.BindingFactory;
+
+                // Add [Test] support
                 var rule = bf.BindToExactType<TestAttribute, string>(attr => attr.Path);
                 extensions.RegisterBindingRules<TestAttribute>(rule);
+
+                // Add [FakeQueueTrigger] support. 
+                IConverterManager cm = context.Config.GetService<IConverterManager>();
+                cm.AddConverter<string, FakeQueueData>(x => new FakeQueueData { Message = x });
+                cm.AddConverter<FakeQueueData, string>(msg => msg.Message);
+                var triggerBindingProvider = new FakeQueueTriggerBindingProvider(new FakeQueueClient(), cm);
+                extensions.RegisterExtension<ITriggerBindingProvider>(triggerBindingProvider);
             }
         }
 
@@ -78,12 +88,26 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
 
             string result = await Invoke<Functions2>(new
             {
-                trigger = new CloudQueueMessage(JsonConvert.SerializeObject(obj)),
-                k1 = 111
+                trigger = NewTriggerObject(obj), // supplies k1,k2
+                k1 = 111 // overwrites trigger.k1
             });
             Assert.Equal("111-x;200-y;111", result);
         }
 
+        // [FakeQueueTrigger] expects object to come as a FakeQueueDataBatch
+        private static FakeQueueDataBatch NewTriggerObject(Functions2.Payload obj)
+        {
+            return new FakeQueueDataBatch
+            {
+                Events = new FakeQueueData[]
+                {
+                    new FakeQueueData
+                    {
+                        Message = JsonConvert.SerializeObject(obj)
+                    }
+                }
+            };
+        }
 
         // Invoke with binding data only, no parameters. 
         [Fact]
