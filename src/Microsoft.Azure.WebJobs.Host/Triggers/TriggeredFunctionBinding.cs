@@ -67,6 +67,7 @@ namespace Microsoft.Azure.WebJobs.Host.Triggers
             }
             valueProviders.Add(_triggerParameterName, triggerProvider);
 
+            bindingData = Merge(bindingData, parameters);
             BindingContext bindingContext = new BindingContext(context, bindingData);
 
             // Bind Singleton if specified
@@ -108,6 +109,22 @@ namespace Microsoft.Azure.WebJobs.Host.Triggers
             }
 
             return valueProviders;
+        }
+
+        // Merge binding data. 
+        // parameters take precedence and overwrite existing bindingData.
+        private static IReadOnlyDictionary<string, object> Merge(IReadOnlyDictionary<string, object> bindingData, IDictionary<string, object> parameters)
+        {
+            Dictionary<string, object> d = new Dictionary<string, object>();
+            foreach (var kv in bindingData)
+            {
+                d[kv.Key] = kv.Value;
+            }
+            foreach (var kv in parameters)
+            {
+                d[kv.Key] = kv.Value;
+            }
+            return d;
         }
     }
 }

@@ -1,5 +1,7 @@
 ﻿using Microsoft.Azure.WebJobs.Host.Config;
 using Microsoft.Azure.WebJobs.Host.TestCommon;
+using Microsoft.WindowsAzure.Storage.Queue;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,18 +14,40 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
     // Unit test for exercising Host.Call passing route data. 
     public class HostCallTestsWithRouteData
     {
-        public class Functions
+        public class FunctionBase
         {
             public StringBuilder _sb = new StringBuilder();
+        }
 
+        public class Functions : FunctionBase
+        {
             public void Func(
                 [Test(Path = "{k1}-x")] string p1,
                 [Test(Path = "{k2}-y")] string p2, 
                 int k1)
             {
                 _sb.AppendFormat("{0};{1};{2}", p1, p2, k1);
-            }      
+            }
         }
+       
+        public class Functions2 : FunctionBase
+        {
+            public class Payload
+            {
+                public int k1 { get; set; }
+                public int k2 { get; set; }
+            }
+
+            public void Func(
+                [QueueTrigger("foo")] Payload trigger,
+                [Test(Path = "{k1}-x")] string p1,
+                [Test(Path = "{k2}-y")] string p2,
+                int k1)
+            {
+                _sb.AppendFormat("{0};{1};{2}", p1, p2, k1);
+            }
+        }
+
 
         public class TestAttribute : Attribute
         {
@@ -42,11 +66,30 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
             }
         }
 
+        // Explicit bindingData takes precedence over binding data inferred from the trigger object. 
+        [Fact]
+        public async Task InvokeTrigger()
+        {
+            var obj = new Functions2.Payload
+            {
+                k1 = 100,
+                k2 = 200
+            };
+
+            string result = await Invoke<Functions2>(new
+            {
+                trigger = new CloudQueueMessage(JsonConvert.SerializeObject(obj)),
+                k1 = 111
+            });
+            Assert.Equal("111-x;200-y;111", result);
+        }
+
+
         // Invoke with binding data only, no parameters. 
         [Fact]
         public async Task InvokeWithBindingData()
         {           
-            string result = await Invoke(new { k1 = 100, k2 = 200 });
+            string result = await Invoke<Functions>(new { k1 = 100, k2 = 200 });
             Assert.Equal("100-x;200-y;100", result);
         }
 
@@ -54,7 +97,7 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
         [Fact]
         public async Task Parameter_Takes_Precedence()
         {
-            string result = await Invoke(new { k1 = 100, k2 = 200, p1="override" });
+            string result = await Invoke<Functions>(new { k1 = 100, k2 = 200, p1="override" });
             Assert.Equal("override;200-y;100", result);
         }
 
@@ -64,7 +107,7 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
         {
             try
             {
-                string result = await Invoke(new { k1 = 100 });
+                string result = await Invoke<Functions>(new { k1 = 100 });
             }
             catch (FunctionInvocationException e)
             {
@@ -78,15 +121,20 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
         }
 
         // Helper to invoke the method with the given parameters
-        private async Task<string> Invoke(object arguments)
+        private async Task<string> Invoke<TFunction>(object arguments) where TFunction : FunctionBase, new()
         {
             var activator = new FakeActivator();
             JobHostConfiguration config = new JobHostConfiguration()
             {
-                TypeLocator = new FakeTypeLocator(typeof(Functions)),
-                JobActivator = activator
+                TypeLocator = new FakeTypeLocator(typeof(TFunction)),
+                JobActivator = activator,
+
+                // Pure in-memory, no storage. 
+                HostId = Guid.NewGuid().ToString("n"),
+                DashboardConnectionString = null,
+                StorageConnectionString = null
             };
-            Functions testInstance = new Functions();
+            TFunction testInstance = new TFunction();
             activator.Add(testInstance);
 
             IExtensionRegistry extensions = config.GetService<IExtensionRegistry>();
@@ -95,7 +143,7 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
 
             JobHost host = new JobHost(config);
 
-            var method = typeof(Functions).GetMethod("Func");
+            var method = typeof(TFunction).GetMethod("Func");
             await host.CallAsync(method, arguments);
 
             var x = testInstance._sb.ToString();
