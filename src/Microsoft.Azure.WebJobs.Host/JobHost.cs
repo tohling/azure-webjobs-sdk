@@ -194,7 +194,7 @@ namespace Microsoft.Azure.WebJobs
         /// <param name="method">The job method to call.</param>
         /// <param name="arguments">
         /// An object with public properties representing argument names and values to bind to parameters in the job
-        /// method. These may be direct parameter values of bindingData. 
+        /// method. In addition to parameter values, these may also include binding data values.
         /// </param>
         public void Call(MethodInfo method, object arguments)
         {
@@ -204,7 +204,7 @@ namespace Microsoft.Azure.WebJobs
         /// <summary>Calls a job method.</summary>
         /// <param name="method">The job method to call.</param>
         /// <param name="arguments">The argument names and values to bind to parameters in the job method.
-        /// These may be direct parameter values of bindingData. </param>
+        /// In addition to parameter values, these may also include binding data values. </param>
         public void Call(MethodInfo method, IDictionary<string, object> arguments)
         {
             CallAsync(method, arguments).GetAwaiter().GetResult();
@@ -224,7 +224,7 @@ namespace Microsoft.Azure.WebJobs
         /// <param name="method">The job method to call.</param>
         /// <param name="arguments">
         /// An object with public properties representing argument names and values to bind to parameters in the job
-        /// method. These may be direct parameter values of bindingData. 
+        /// method. In addition to parameter values, these may also include binding data values. 
         /// </param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
         /// <returns>A <see cref="Task"/> that will call the job method.</returns>
@@ -239,7 +239,7 @@ namespace Microsoft.Azure.WebJobs
 
         /// <summary>Calls a job method.</summary>
         /// <param name="method">The job method to call.</param>
-        /// <param name="arguments">The argument names and values to bind to parameters in the job method. These may be direct parameter values of bindingData. </param>
+        /// <param name="arguments">The argument names and values to bind to parameters in the job method. In addition to parameter values, these may also include binding data values. </param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
         /// <returns>A <see cref="Task"/> that will call the job method.</returns>
         public Task CallAsync(MethodInfo method, IDictionary<string, object> arguments,

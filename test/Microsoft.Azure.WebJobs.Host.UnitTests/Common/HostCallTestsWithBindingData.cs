@@ -13,7 +13,7 @@ using Xunit;
 namespace Microsoft.Azure.WebJobs.Host.UnitTests
 {
     // Unit test for exercising Host.Call passing route data. 
-    public class HostCallTestsWithRouteData
+    public class HostCallTestsWithBindingData
     {        
         public class FunctionBase
         {
