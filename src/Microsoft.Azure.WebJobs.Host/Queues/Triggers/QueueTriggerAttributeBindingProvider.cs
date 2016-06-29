@@ -11,6 +11,7 @@ using Microsoft.Azure.WebJobs.Host.Storage.Queue;
 using Microsoft.Azure.WebJobs.Host.Timers;
 using Microsoft.Azure.WebJobs.Host.Triggers;
 using Microsoft.WindowsAzure.Storage.Queue;
+using Newtonsoft.Json.Linq;
 
 namespace Microsoft.Azure.WebJobs.Host.Queues.Triggers
 {
@@ -22,6 +23,7 @@ namespace Microsoft.Azure.WebJobs.Host.Queues.Triggers
                     new StorageQueueMessageToCloudQueueMessageConverter()),
                 new ConverterArgumentBindingProvider<string>(new StorageQueueMessageToStringConverter()),
                 new ConverterArgumentBindingProvider<byte[]>(new StorageQueueMessageToByteArrayConverter()),
+                new JObjectArgumentBindingProvider(),
                 new UserTypeArgumentBindingProvider()); // Must come last, because it will attempt to bind all types.
 
         private readonly INameResolver _nameResolver;

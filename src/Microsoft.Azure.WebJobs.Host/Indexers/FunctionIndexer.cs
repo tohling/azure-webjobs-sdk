@@ -14,6 +14,7 @@ using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.Azure.WebJobs.Host.Listeners;
 using Microsoft.Azure.WebJobs.Host.Protocols;
 using Microsoft.Azure.WebJobs.Host.Triggers;
+using Newtonsoft.Json.Linq;
 
 namespace Microsoft.Azure.WebJobs.Host.Indexers
 {
@@ -202,6 +203,11 @@ namespace Microsoft.Azure.WebJobs.Host.Indexers
 
             bool hasParameterBindingAttribute = false;
             Exception invalidInvokeBindingException = null;
+            bool skipContractValidation = false;
+            if (triggerParameter.ParameterType == typeof(JObject))
+            {
+                skipContractValidation = true;
+            }
 
             foreach (ParameterInfo parameter in parameters)
             {
@@ -210,7 +216,9 @@ namespace Microsoft.Azure.WebJobs.Host.Indexers
                     continue;
                 }
 
-                IBinding binding = await _bindingProvider.TryCreateAsync(new BindingProviderContext(parameter, bindingDataContract, cancellationToken));
+                var context = new BindingProviderContext(parameter, bindingDataContract, cancellationToken);
+                context.SkipContractValidation = skipContractValidation;
+                IBinding binding = await _bindingProvider.TryCreateAsync(context);
                 if (binding == null)
                 {
                     if (triggerBinding != null && !hasNoAutomaticTriggerAttribute)

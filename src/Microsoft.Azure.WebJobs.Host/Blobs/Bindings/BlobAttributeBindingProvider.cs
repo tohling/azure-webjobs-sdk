@@ -79,7 +79,10 @@ namespace Microsoft.Azure.WebJobs.Host.Blobs.Bindings
                 }
 
                 path = BindableBlobPath.Create(resolvedPath);
-                path.ValidateContractCompatibility(context.BindingDataContract);
+                if (!context.SkipContractValidation)
+                {
+                    path.ValidateContractCompatibility(context.BindingDataContract);
+                }
 
                 return new BlobBinding(parameter.Name, blobArgumentBinding, client, path);
             }

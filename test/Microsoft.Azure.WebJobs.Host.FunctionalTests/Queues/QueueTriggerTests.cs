@@ -12,6 +12,7 @@ using Microsoft.Azure.WebJobs.Host.Storage.Queue;
 using Microsoft.Azure.WebJobs.Host.TestCommon;
 using Microsoft.WindowsAzure.Storage.Queue;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Xunit;
 
 namespace Microsoft.Azure.WebJobs.Host.FunctionalTests
@@ -124,6 +125,34 @@ namespace Microsoft.Azure.WebJobs.Host.FunctionalTests
 
             // Assert
             Assert.Equal(expectedContent, result);
+        }
+
+        [Fact]
+        public void QueueTrigger_IfBoundToJObject_Binds()
+        {
+            JObject expectedContent = new JObject
+            {
+                { "Prop1", 123 },
+                { "Prop2", "Testing" }
+            };
+            TestBindToJObject(expectedContent);
+        }
+
+        private static void TestBindToJObject(JObject expectedContent)
+        {
+            // Arrange
+            IStorageAccount account = CreateFakeStorageAccount();
+            IStorageQueue queue = CreateQueue(account, QueueName);
+            string content = expectedContent.ToString();
+            IStorageQueueMessage message = queue.CreateMessage(content);
+            queue.AddMessage(message);
+
+            // Act
+            JObject result = RunTrigger<JObject>(account, typeof(BindToJObjectProgram), (s) => BindToJObjectProgram.TaskSource = s);
+
+            // Assert
+            Assert.Equal(expectedContent["Prop1"], result["Prop1"]);
+            Assert.Equal(expectedContent["Prop2"], result["Prop2"]);
         }
 
         [Fact]
@@ -822,6 +851,22 @@ namespace Microsoft.Azure.WebJobs.Host.FunctionalTests
 
             public static void Run([QueueTrigger(QueueName)] Poco message)
             {
+                TaskSource.TrySetResult(message);
+            }
+        }
+
+        private class BindToJObjectProgram
+        {
+            public static TaskCompletionSource<JObject> TaskSource { get; set; }
+
+            public static void Run(
+                [QueueTrigger(QueueName)] JObject message,
+                long Prop1,
+                string Prop2)
+            {
+                Assert.Equal(123, Prop1);
+                Assert.Equal("Testing", Prop2);
+
                 TaskSource.TrySetResult(message);
             }
         }

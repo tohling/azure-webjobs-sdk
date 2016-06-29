@@ -40,6 +40,11 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
         }
 
         /// <summary>
+        /// Gets or sets a value indicating whether early contract validation should be skipped.
+        /// </summary>
+        public bool SkipContractValidation { get; set; }
+
+        /// <summary>
         /// Gets the data contract for the binding.
         /// </summary>
         public IReadOnlyDictionary<string, Type> BindingDataContract

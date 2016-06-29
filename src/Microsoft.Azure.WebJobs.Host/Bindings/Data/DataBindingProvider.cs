@@ -18,16 +18,17 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings.Data
                 throw new ArgumentNullException("context");
             }
 
-            IReadOnlyDictionary<string, Type> bindingDataContract = context.BindingDataContract;
-            string parameterName = context.Parameter.Name;
-
-            if (bindingDataContract == null || !bindingDataContract.ContainsKey(parameterName))
+            if (!context.SkipContractValidation)
             {
-                return Task.FromResult<IBinding>(null);
+                IReadOnlyDictionary<string, Type> bindingDataContract = context.BindingDataContract;
+                string parameterName = context.Parameter.Name;
+                if (bindingDataContract == null || !bindingDataContract.ContainsKey(parameterName))
+                {
+                    return Task.FromResult<IBinding>(null);
+                }
             }
 
-            Type bindingDataType = bindingDataContract[parameterName];
-
+            Type bindingDataType = context.Parameter.ParameterType;
             if (bindingDataType.IsByRef)
             {
                 return Task.FromResult<IBinding>(null);
