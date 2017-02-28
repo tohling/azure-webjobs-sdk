@@ -43,6 +43,34 @@ namespace Microsoft.Azure.WebJobs
             this._openConverters.Add(entry);
         }
 
+        // If somebody registered a converter from Src-->Dest, then both those types  can be used to 
+        // resolve assemblies. 
+        internal void AddAssemblies(Dictionary<string, Assembly> resolvedAssemblies)
+        {
+            foreach (var func in _funcsWithAttr.Values)
+            {
+                var t = func.GetType();
+                if (t.IsGenericType)
+                {
+                    var dt = t.GetGenericTypeDefinition();
+                    if (dt == typeof(FuncConverter<,,>))
+                    {
+                        foreach (var genericArg in t.GetGenericArguments())
+                        {
+                            AddAssemblies(genericArg, resolvedAssemblies);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static void AddAssemblies(Type type, Dictionary<string, Assembly> resolvedAssemblies)
+        {
+            var assembly = type.Assembly;
+            string name = assembly.GetName().Name;
+            resolvedAssemblies[name] = assembly;
+        }
+
         private Func<Type, Type, Func<object, object>> TryGetOpenConverter(Type typeSource, Type typeDest, Type typeAttribute)
         {
             foreach (var entry in _openConverters)

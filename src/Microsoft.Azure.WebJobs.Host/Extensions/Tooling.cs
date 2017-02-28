@@ -46,12 +46,12 @@ namespace Microsoft.Azure.WebJobs.Host
             typeof(string)
         };
 
+        private IBindingProvider _root;
+
         public Tooling(JobHostConfiguration config)
         {
             _config = config;
         }
-
-        internal IBindingProvider _root { get; set; }
 
         public IEnumerable<ExtensionBase> Extensions
         {
@@ -59,6 +59,25 @@ namespace Microsoft.Azure.WebJobs.Host
             {
                 return _extensionList;
             }
+        }
+
+        internal void Init(IBindingProvider root)
+        {
+            this._root = root;
+
+            // Populate assembly resolution from converters.
+            var converter = this._config.GetService<IConverterManager>() as ConverterManager;
+            if (converter != null)
+            {
+                converter.AddAssemblies(this._resolvedAssemblies);
+            }
+        }
+
+        public Assembly TryResolveAssembly(string assemblyName)
+        {
+            Assembly assembly;
+            _resolvedAssemblies.TryGetValue(assemblyName, out assembly);
+            return assembly;
         }
 
         /// <summary>

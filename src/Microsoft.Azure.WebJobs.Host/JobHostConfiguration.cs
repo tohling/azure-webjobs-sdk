@@ -380,7 +380,7 @@ namespace Microsoft.Azure.WebJobs
             var ctx = this.CreateStaticServices();
             var provider = ctx.GetService<IBindingProvider>();
 
-            _tooling._root = provider;
+            _tooling.Init(provider);
 
             // $$$ Ensure all extensiosn have been called 
             return Task.FromResult<ITooling>(_tooling);

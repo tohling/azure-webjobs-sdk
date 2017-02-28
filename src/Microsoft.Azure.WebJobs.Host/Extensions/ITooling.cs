@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using Microsoft.Azure.WebJobs.Host.Extensions;
 using Newtonsoft.Json.Linq;
 
@@ -47,6 +48,17 @@ namespace Microsoft.Azure.WebJobs.Host
         Type GetDefaultType(
                 Attribute attribute,
                 FileAccess access, // direction In, Out, In/Out
-                Type requestedType); // combination of Cardinality and DataType            
+                Type requestedType); // combination of Cardinality and DataType 
+
+        /// <summary>
+        /// Attempt to resolve the specified reference assembly.
+        /// </summary>
+        /// <remarks>
+        /// This allows an extension to support "built in" assemblies for .NET functions so
+        /// user code can easily reference them.
+        /// </remarks>
+        /// <param name="assemblyName">The name of the assembly to resolve.</param>
+        /// <returns>The assembly if we were able to resolve. Else null</returns>
+        Assembly TryResolveAssembly(string assemblyName);
     }
 }

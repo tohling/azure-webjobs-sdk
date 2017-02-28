@@ -12,6 +12,7 @@ using Xunit;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using System.IO;
+using System.Reflection;
 
 namespace Microsoft.Azure.WebJobs.Host.UnitTests
 {
@@ -26,6 +27,10 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
             await config.AddExtensionAsync(ext, null);
 
             var tooling = await config.GetToolingAsync();
+
+            // Fact that we registered a Widget converter is enough to add the assembly 
+            Assembly asm = tooling.TryResolveAssembly(typeof(Widget).Assembly.GetName().Name);
+            Assert.Same(asm, typeof(Widget).Assembly);
 
             var extensions = tooling.Extensions.ToArray();
             Assert.Equal(1, extensions.Length);
