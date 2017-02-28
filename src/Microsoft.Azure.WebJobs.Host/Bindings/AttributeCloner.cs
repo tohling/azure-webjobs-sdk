@@ -130,7 +130,7 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
                 throw new InvalidOperationException("Can't figure out which ctor to call.");
             }
         }
-
+           
         private bool TryCreateAutoResolveBindingTemplate(PropertyInfo propInfo, INameResolver nameResolver, out BindingTemplate template)
         {
             template = null;

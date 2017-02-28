@@ -376,6 +376,7 @@
     <Compile Include="AzureStorageDeploymentValidator.cs" />
     <Compile Include="Bindings\AmbientBindingContext.cs" />
     <Compile Include="Bindings\AttributeCloner.cs" />
+    <Compile Include="Bindings\AttributeConverter.cs" />
     <Compile Include="Bindings\BindingBase.cs" />
     <Compile Include="Bindings\BindingFactory.cs" />
     <Compile Include="Bindings\BindingProviders\BindToInputBindingProvider.cs" />
@@ -402,6 +403,9 @@
     <Compile Include="DefaultNameResolver.cs" />
     <Compile Include="Executors\FunctionInstanceTraceWriter.cs" />
     <Compile Include="Extensions\ExceptionExtensions.cs" />
+    <Compile Include="Extensions\ExtensionBase.cs" />
+    <Compile Include="Extensions\ITooling.cs" />
+    <Compile Include="Extensions\Tooling.cs" />
     <Compile Include="FuncConverter.cs" />
     <Compile Include="FunctionTimeoutException.cs" />
     <Compile Include="JobHostBlobsConfiguration.cs" />

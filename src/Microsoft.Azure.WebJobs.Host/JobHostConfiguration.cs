@@ -4,13 +4,16 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Azure.WebJobs.Host.Bindings;
 using Microsoft.Azure.WebJobs.Host.Executors;
+using Microsoft.Azure.WebJobs.Host.Extensions;
 using Microsoft.Azure.WebJobs.Host.Indexers;
 using Microsoft.Azure.WebJobs.Host.Loggers;
 using Microsoft.Azure.WebJobs.Host.Queues;
 using Microsoft.Azure.WebJobs.Host.Timers;
+using Newtonsoft.Json.Linq;
 
 namespace Microsoft.Azure.WebJobs
 {
@@ -26,7 +29,9 @@ namespace Microsoft.Azure.WebJobs
         private readonly JobHostBlobsConfiguration _blobsConfiguration = new JobHostBlobsConfiguration();
         private readonly JobHostTraceConfiguration _traceConfiguration = new JobHostTraceConfiguration();
         private readonly ConcurrentDictionary<Type, object> _services = new ConcurrentDictionary<Type, object>();
-        
+
+        private readonly Tooling _tooling;
+
         private string _hostId;
 
         /// <summary>
@@ -75,6 +80,8 @@ namespace Microsoft.Azure.WebJobs
 
             string value = ConfigurationUtility.GetSettingFromConfigOrEnvironment(Constants.EnvironmentSettingName);
             IsDevelopment = string.Compare(Constants.DevelopmentEnvironmentValue, value, StringComparison.OrdinalIgnoreCase) == 0;
+
+            _tooling = new Tooling(this);
         }
 
         /// <summary>
@@ -353,6 +360,30 @@ namespace Microsoft.Azure.WebJobs
         public void AddService<TService>(TService serviceInstance)
         {
             AddService(typeof(TService), serviceInstance);
+        }
+
+        /// <summary>
+        /// </summary>
+        /// <param name="extension"></param>
+        /// <param name="hostMetadata"></param>
+        public async Task AddExtensionAsync(ExtensionBase extension, JObject hostMetadata)
+        {
+            await _tooling.AddExtensionAsync(extension, hostMetadata);
+        }
+
+        /// <summary>
+        /// $$$
+        /// </summary>
+        /// <returns></returns>
+        public Task<ITooling> GetToolingAsync()
+        {
+            var ctx = this.CreateStaticServices();
+            var provider = ctx.GetService<IBindingProvider>();
+
+            _tooling._root = provider;
+
+            // $$$ Ensure all extensiosn have been called 
+            return Task.FromResult<ITooling>(_tooling);
         }
     }
 }
