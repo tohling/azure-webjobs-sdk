@@ -65,9 +65,54 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
             JobHostConfiguration config = TestHelpers.NewConfig();
             var tooling = await config.GetToolingAsync();
 
+
+            // Blob 
+            var blobAttr = GetAttr<BlobAttribute>(tooling, new { path = "x" } );
+            Assert.Equal("x", blobAttr.BlobPath);
+            Assert.Equal(null, blobAttr.Access);
+
+            blobAttr = GetAttr<BlobAttribute>(tooling, new { path = "x", direction="in" });
+            Assert.Equal("x", blobAttr.BlobPath);
+            Assert.Equal(FileAccess.Read, blobAttr.Access);
+
+            blobAttr = GetAttr<BlobAttribute>(tooling, new { Path = "x", Direction="out" });
+            Assert.Equal("x", blobAttr.BlobPath);
+            Assert.Equal(FileAccess.Write, blobAttr.Access);
+
+            blobAttr = GetAttr<BlobAttribute>(tooling, new { path = "x", direction = "inout" });
+            Assert.Equal("x", blobAttr.BlobPath);
+            Assert.Equal(FileAccess.ReadWrite, blobAttr.Access);
+
+            {
+                var attributes = tooling.GetAttributes(typeof(BlobAttribute), JObject.FromObject(
+                new
+                {
+                    path = "x",
+                    direction = "in",
+                    connection = "cx1"
+                })); 
+
+                Assert.Equal(2, attributes.Length);
+                blobAttr = (BlobAttribute)attributes[0];
+                var storageAttr = (StorageAccountAttribute)attributes[1];
+
+                Assert.Equal("x", blobAttr.BlobPath);
+                Assert.Equal(FileAccess.Read, blobAttr.Access);
+
+                Assert.Equal("cx1", storageAttr.Account);
+            }
+
+            var blobTriggerAttr = GetAttr<BlobTriggerAttribute>(tooling, new { path = "x" });
+            Assert.Equal("x", blobTriggerAttr.BlobPath);
+
+            // Queue 
             var queueAttr = GetAttr<QueueAttribute>(tooling, new { QueueName = "q1" });
             Assert.Equal("q1", queueAttr.QueueName);
 
+            var queueTriggerAttr = GetAttr<QueueTriggerAttribute>(tooling, new { QueueName = "q1" });
+            Assert.Equal("q1", queueTriggerAttr.QueueName);
+            
+            // Table
             var tableAttr = GetAttr<TableAttribute>(tooling, new { TableName = "t1" });
             Assert.Equal("t1", tableAttr.TableName);
 

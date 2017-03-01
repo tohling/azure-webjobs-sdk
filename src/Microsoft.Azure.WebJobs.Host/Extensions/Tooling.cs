@@ -134,8 +134,70 @@ namespace Microsoft.Azure.WebJobs.Host
 
         public Attribute[] GetAttributes(Type attributeType, JObject metadata)
         {
+            if (metadata == null)
+            {
+                throw new ArgumentNullException("metadata");
+            }
+            List<Attribute> list = new List<Attribute>();
+
+            Touchups(attributeType, metadata, list);
+
             var resolve = AttributeCloner.CreateDirect(attributeType, metadata, null);
-            return new Attribute[] { resolve };
+            list.Insert(0, resolve);
+            return list.ToArray();
+        }
+
+        // Handle touchups where automatically conversion would break. 
+        // $$$ Ideally get rid of this method by either 
+        // a) removing the inconsistencies
+        // b) having some hook tha tlets the extension handle it. 
+        private static void Touchups(Type attributeType, JObject metadata, List<Attribute> list)
+        {
+            JToken token;
+            if (attributeType == typeof(BlobAttribute) ||
+                attributeType == typeof(BlobTriggerAttribute))
+            {
+                // Path --> BlobPath                
+                if (metadata.TryGetValue("path", StringComparison.OrdinalIgnoreCase, out token))
+                {
+                    metadata["BlobPath"] = token;
+                }
+
+                if (metadata.TryGetValue("direction", StringComparison.OrdinalIgnoreCase, out token))
+                {
+                    FileAccess access;
+                    switch (token.ToString().ToLowerInvariant())
+                    {
+                        case "in":
+                            access = FileAccess.Read;
+                            break;
+                        case "out":
+                            access = FileAccess.Write;
+                            break;
+                        case "inout":
+                            access = FileAccess.ReadWrite;
+                            break;
+                        default:
+                            throw new InvalidOperationException($"Illegal direction value: '{token}'");
+                    }
+                    metadata["access"] = access.ToString();
+                }
+            }
+
+            // Special case handling of StorageAccountAttribute
+            // $$$ - make StorageAccountAttribute a base class of BlobAttribuet and then this goes aways
+            if (attributeType == typeof(BlobAttribute) ||
+                attributeType == typeof(BlobTriggerAttribute) ||
+                attributeType == typeof(TableAttribute) ||
+                attributeType == typeof(QueueAttribute) ||
+                attributeType == typeof(QueueTriggerAttribute))
+            {
+                if (metadata.TryGetValue("Connection", StringComparison.OrdinalIgnoreCase, out token))
+                {
+                    var attr = new StorageAccountAttribute(token.ToString());
+                    list.Add(attr);
+                }
+            }
         }
 
         private bool CanBind(Attribute attribute, Type parameterType)

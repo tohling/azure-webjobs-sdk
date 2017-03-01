@@ -45,6 +45,8 @@ namespace Microsoft.Azure.WebJobs
 
         // If somebody registered a converter from Src-->Dest, then both those types  can be used to 
         // resolve assemblies. 
+        // The attribute type always points to the extension's assembly. 
+        // Whereas some of the Src,Dest types will point to the resource's "native sdk"
         internal void AddAssemblies(Dictionary<string, Assembly> resolvedAssemblies)
         {
             foreach (var func in _funcsWithAttr.Values)
