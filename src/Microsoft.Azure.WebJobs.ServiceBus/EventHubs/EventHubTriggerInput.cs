@@ -14,6 +14,7 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
 
         internal EventData[] Events { get; set; }
         internal PartitionContext PartitionContext { get; set; }
+        internal byte[][] Content { get; set; }
 
         public static EventHubTriggerInput New(EventData eventData)
         {
@@ -42,8 +43,14 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
             {
                 Events = this.Events,
                 PartitionContext = this.PartitionContext,
+                Content = this.Content,
                 _selector = idx
             };
+        }
+
+        public byte[] GetSingleEventContent()
+        {
+            return this.Content[this._selector];
         }
 
         public EventData GetSingleEventData()
