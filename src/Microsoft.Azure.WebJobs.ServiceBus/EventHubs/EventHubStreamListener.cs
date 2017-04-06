@@ -68,15 +68,16 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             {
                 await context.CheckpointAsync().ConfigureAwait(false);
             }
-
-            _logger.Info($"Source: 'EventHubStreamListener', Method: 'CloseAsync', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
         }
 
         public Task OpenAsync(PartitionContext context)
         {
             if (context != null)
             {
-                _logger.Info($"Source: 'EventHubStreamListener', Method: 'OpenAsync', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+                _logger.Info("{eventType} {method} {eventHubName} {partitionId} {sequence}",
+                    "Transition", "OpenAsync",
+                    context.EventHubPath, context.Lease.PartitionId,
+                    context.Lease.SequenceNumber);
             }
 
             return Task.FromResult(0);
@@ -137,7 +138,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                     }
 
                     await Task.WhenAll(dispatches).ConfigureAwait(false);
-                    _logger.Info($"Source: 'EventHubStreamListener', Method: 'ProcessEventsAsync-SingleDispatch', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
                 }
                 else
                 {
@@ -157,13 +157,10 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                     {
                         message.Dispose();
                     }
-
-                    _logger.Info($"Source: 'EventHubStreamListener', Method: 'ProcessEventsAsync-BatchDispatch', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
                 }
 
                 // [masimms] TODO - update the checkpoint periodically, not on every batch of messages
                 await context.CheckpointAsync().ConfigureAwait(false);
-                _logger.Info($"Source: 'EventHubStreamListener', Method: 'ProcessEventsAsync-Checkpoint', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
             }
             finally
             {

@@ -22,7 +22,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         private readonly ITriggeredFunctionExecutor _executor;
         private readonly IMessageStatusManager _statusManager;
         private readonly TimeSpan _maxElapsedTime;
-        private readonly ILogger _logger;
 
         private int _messagesExecuted = 0;
         private int _messagesComplete = 0;
@@ -43,7 +42,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             this._maxElapsedTime = maxElapsedTime;
 
             // Pull in the static instance logger
-            _logger = EventHubLogger.Instance;
 
             _workQueue = new ActionBlock<EventHubTaskWrapper>(
                 async (trigger) =>
@@ -91,9 +89,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             // Wait for the work item to successfully enqueue
             await _workQueue.SendAsync(task, _cts.Token).ConfigureAwait(false);
 
-            // var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(input));
-            _logger.Info($"Source: 'EventHubDispatcher', Method: 'SendAsync', InputId: '{input.ParentId}', Message: '{input.TriggerValue}'");
-
             // Return a task to wait on the work item being 
             // successfully processed
             return task.CompletionSource.Task;
@@ -137,9 +132,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 .ContinueWith(async task => await HandleCompletion(
                     task, startTime, messageId, message, content).ConfigureAwait(false));
 
-            // var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(input));
-            _logger.Info($"Source: 'EventHubDispatcher', Method: 'TriggerSingleInput', InputId: '{input.ParentId}', Work State: 'Enqueued', Message: '{input.TriggerValue}'");
-
             var timerTask = Task.Delay(_maxElapsedTime);
             await Task.WhenAny(workTask, timerTask).ConfigureAwait(false);
 
@@ -156,22 +148,16 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                     Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(input)))
                         .ConfigureAwait(false);
                 Interlocked.Increment(ref _messagesTimeout);
-
-                // data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(input));
-                _logger.Info($"Source: 'EventHubDispatcher', Method: 'TriggerSingleInput', InputId: '{messageId}', Work State: '{workTask.Status}', Message: '{input.TriggerValue}'");
             }
             else
             {
                 Interlocked.Increment(ref _messagesComplete);
-                // data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(input));
-                _logger.Info($"Source: 'EventHubDispatcher', Method: 'TriggerSingleInput', InputId: '{messageId}', Work State: 'Completed', Message: '{input.TriggerValue}'");
             }
             Interlocked.Increment(ref _messagesExecuted);
 
             // TODO - hold here if the long running queue is too big
             while (_statusManager.ActiveTaskCount > 1024)
             {
-                _logger.Info($"Source: 'EventHubDispatcher', Method: 'TriggerSingleInput', InputId: '{messageId}', Work State: 'null', Message: 'Long runnning queue > 1024'");
                 await Task.Delay(1000).ConfigureAwait(false);
                 // TODO            
             }
@@ -195,8 +181,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             // Has the task been registered in the remote store for future execution?
             // If so, signal as complete 
             await _statusManager.SetComplete(messageId, elapsedMs).ConfigureAwait(false);
-
-            _logger.Info($"Source: 'EventHubDispatcher', Method: 'HandleCompletion', InputId: '{messageId}', Work State: 'Completed', Message: '{message.ToString()}'");
 
             // Dispose the message to release memory as early as is practical     
             message.Dispose();
