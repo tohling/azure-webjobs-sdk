@@ -2,12 +2,12 @@
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Configuration;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.Azure.WebJobs.Host.Listeners;
+using Microsoft.Azure.WebJobs.ServiceBus.EventHubs;
 using Microsoft.ServiceBus.Messaging;
 
 namespace Microsoft.Azure.WebJobs.ServiceBus
@@ -15,17 +15,20 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
     // Created from the EventHubTrigger attribute to listen on the EventHub. 
     internal sealed class EventHubListener : IListener, IEventProcessorFactory
     {
+        private const string StreamDispatcherEnabledAppSettingsKey = "STREAM_DISPATCHER_ENABLED";
         private readonly ITriggeredFunctionExecutor _executor;
         private readonly EventProcessorHost _eventListener;
         private readonly bool _singleDispatch;
         private readonly EventProcessorOptions _options;
+        private readonly IMessageStatusManager _statusManager;
 
-        public EventHubListener(ITriggeredFunctionExecutor executor, EventProcessorHost eventListener, EventProcessorOptions options, bool single)
+        public EventHubListener(ITriggeredFunctionExecutor executor, EventProcessorHost eventListener, EventProcessorOptions options, bool single, IMessageStatusManager statusManager)
         {
             this._executor = executor;
             this._eventListener = eventListener;
             this._singleDispatch = single;
             this._options = options;
+            this._statusManager = statusManager;
         }
 
         void IListener.Cancel()
@@ -52,8 +55,22 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
         // This will get called per-partition. 
         IEventProcessor IEventProcessorFactory.CreateEventProcessor(PartitionContext context)
         {
-            return new Listener(this);
+            string streamDispatcherEnabledSetting = ConfigurationManager.AppSettings[StreamDispatcherEnabledAppSettingsKey];
+
+            bool streamDispatcherEnabled = !string.IsNullOrEmpty(streamDispatcherEnabledSetting) && string.Equals(streamDispatcherEnabledSetting, "TRUE", StringComparison.OrdinalIgnoreCase);
+
+            if (streamDispatcherEnabled)
+            {
+                return new EventHubStreamListener(_singleDispatch,
+                    _executor, _statusManager,
+                    TimeSpan.FromSeconds(1),
+                    16);
+            }
+
+            return new EventHubBatchListener(this._singleDispatch, this._executor);
         }
+
+        /*
 
         // We get a new instance each time Start() is called. 
         // We'll get a listener per partition - so they can potentialy run in parallel even on a single machine.
@@ -154,6 +171,7 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
                     await context.CheckpointAsync();
                 }
             }
-        } // end class Listener 
+        } // end class Listener
+        */ 
     }
 }
