@@ -55,7 +55,7 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
         // This will get called per-partition. 
         IEventProcessor IEventProcessorFactory.CreateEventProcessor(PartitionContext context)
         {
-            string streamDispatcherEnabledSetting = ConfigurationManager.AppSettings[StreamDispatcherEnabledAppSettingsKey];
+            string streamDispatcherEnabledSetting = Environment.GetEnvironmentVariable(StreamDispatcherEnabledAppSettingsKey);
 
             bool streamDispatcherEnabled = !string.IsNullOrEmpty(streamDispatcherEnabledSetting) && string.Equals(streamDispatcherEnabledSetting, "TRUE", StringComparison.OrdinalIgnoreCase);
 

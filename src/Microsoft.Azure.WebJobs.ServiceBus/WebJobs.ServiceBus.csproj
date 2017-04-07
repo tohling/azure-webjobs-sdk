@@ -242,7 +242,9 @@
       <Link>Properties\PublicKey.snk</Link>
     </None>
     <None Include="app.config" />
-    <None Include="Nlog.config" />
+    <EmbeddedResource Include="Nlog.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
     <None Include="packages.config">
       <SubType>Designer</SubType>
     </None>
