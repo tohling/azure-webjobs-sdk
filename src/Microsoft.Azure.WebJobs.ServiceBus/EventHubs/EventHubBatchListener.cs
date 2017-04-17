@@ -45,6 +45,8 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             {
                 await context.CheckpointAsync();
             }
+
+            _logger.Info($"Source: 'EventHubBatchListener', Method: 'CloseAsync', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
         }
 
         public Task OpenAsync(PartitionContext context)
@@ -54,10 +56,7 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             {
                 Interlocked.Exchange(ref _partitionId, context.Lease.PartitionId);
 
-                _logger.Info("{eventType} {method} {eventHubName} {partitionId} {sequence}",
-                    "Transition", "OpenAsync",
-                    context.EventHubPath, context.Lease.PartitionId,
-                    context.Lease.SequenceNumber);
+                _logger.Info($"Source: 'EventHubBatchListener', Method: 'OpenAsync', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
             }
 
             return Task.FromResult(0);
@@ -88,10 +87,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
 
             try
             {
-                _logger.Info("{eventType} {method} {count} {eventHubName} {partitionId} {sequence}",
-                    "BeginEventHubProcessing", "ProcessEventsAsync", messages.Count(),
-                    context.EventHubPath, context.Lease.PartitionId, context.Lease.SequenceNumber);
-
                 EventHubTriggerInput value = new EventHubTriggerInput
                 {
                     Events = messages.ToArray(),
@@ -133,6 +128,8 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                         await Task.WhenAll(dispatches);
                         Interlocked.Add(ref _messagesComplete, dispatches.Count);
                     }
+
+                    _logger.Info($"Source: 'EventHubBatchListener', Method: 'ProcessEventsAsync-SinglehDispatch', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
                 }
                 else
                 {
@@ -145,6 +142,7 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                     };
 
                     FunctionResult result = await _executor.TryExecuteAsync(input, CancellationToken.None);
+                    _logger.Info($"Source: 'EventHubBatchListener', Method: 'ProcessEventsAsync-BatchDispatch', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
                 }
 
                 // Dispose all messages to help with memory pressure. If this is missed, the finalizer thread will still get them. 
@@ -158,6 +156,7 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 // For example, it could fail if we lost the lease. That could happen if we failed to renew it due to CPU starvation or an inability 
                 // to make the outbound network calls to renew. 
                 await context.CheckpointAsync();
+                _logger.Info($"Source: 'EventHubBatchListener', Method: 'ProcessEventsAsync-Checkpoint', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
             }
             finally
             {

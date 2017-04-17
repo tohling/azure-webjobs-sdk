@@ -14,6 +14,9 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
         static EventHubLogger()
         {
+            string logConfigFilePath = Environment.GetEnvironmentVariable("EVENTHUB_LOGCONFIG_PATH");
+            LogManager.Configuration = new XmlLoggingConfiguration(logConfigFilePath);
+
 #if DEBUG
             // Setup the logging view for Sentinel - http://sentinel.codeplex.com
             var sentinalTarget = new NLogViewerTarget()
