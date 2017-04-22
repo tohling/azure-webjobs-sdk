@@ -5,7 +5,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
-using NLog;
 
 namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
 {
@@ -23,7 +22,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
     internal class InMemoryMessageStatusHandler : IMessageStatusManager
     {
         private readonly ConcurrentDictionary<Guid, MessageData> _info;
-        private readonly ILogger _logger;
         private long _activeTasks = 0;
 
         /// <summary>
@@ -32,7 +30,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         public InMemoryMessageStatusHandler()
         {
             _info = new ConcurrentDictionary<Guid, MessageData>();
-            _logger = EventHubLogger.Instance;
         }
 
         /// <summary>
@@ -55,6 +52,11 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         /// <param name="elapsed"></param>
         /// <param name="context"></param>
         /// <returns></returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA1801:ReviewUnusedParameters", MessageId = "elapsed")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "TimeElapsed")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "UpdateStatus")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "RunningTasks")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "InputId")]
         protected Task UpdateStatus(Guid messageId, State state,
             TimeSpan timeToLive, TimeSpan elapsed, byte[] context = null)
         {
@@ -91,11 +93,11 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 Interlocked.Increment(ref _activeTasks);
             }
 
-            _logger.Debug("{eventType} {messageId} {elapsed} {timeToLive} {running} ",
-                "InMemory_UpdateStatus", messageId,
-                elapsed,
-                timeToLive,
-                Interlocked.Read(ref _activeTasks));
+            /*
+            string runningTasks = Interlocked.Read(ref _activeTasks).ToString();
+            string msg = $"Method: UpdateStatus, InputId: {messageId}, Work State: {state}, TimeSpan: {timeToLive}, TimeElapsed: {elapsed}, RunningTasks:{runningTasks}";
+            EventHubLogger.LoggerInstance.LogMessage("InMemoryMessageStatusHandler", LogType.Info, msg);
+            */
             return Task.FromResult(0);
         }
 
@@ -138,6 +140,10 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         /// <param name="messageId"></param>
         /// <param name="elapsed"></param>
         /// <returns></returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "TimeElapsed")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "SetComplete")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "RunningTasks")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "InputId")]
         public Task SetComplete(Guid messageId, TimeSpan elapsed)
         {
             MessageData md;
@@ -145,10 +151,11 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             {
                 Interlocked.Decrement(ref _activeTasks);
 
-                _logger.Debug("{eventType} {method} {messageId} {state} {elapsed}",
-                    "EndEvent", "InMemory::SetComplete", messageId,
-                    State.Complete,
-                    elapsed);
+                /*
+                string runningTasks = Interlocked.Read(ref _activeTasks).ToString();
+                string msg = $"Method: SetComplete, InputId: {messageId}, Work State: Completed, TimeElapsed: {elapsed}, RunningTasks: {runningTasks}";
+                EventHubLogger.LoggerInstance.LogMessage("InMemoryMessageStatusHandler", LogType.Info, msg);
+                */
             }
 
             return Task.FromResult(0);
