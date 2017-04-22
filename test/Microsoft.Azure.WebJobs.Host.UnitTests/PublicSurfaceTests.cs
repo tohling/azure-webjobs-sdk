@@ -94,7 +94,10 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests
                 "ServiceBusAttribute",
                 "ServiceBusConfiguration",
                 "ServiceBusJobHostConfigurationExtensions",
-                "ServiceBusTriggerAttribute"
+                "ServiceBusTriggerAttribute",
+                "EventHubLogger",
+                "LogMessage",
+                "LogType"
             };
 
             AssertPublicTypes(expected, assembly);

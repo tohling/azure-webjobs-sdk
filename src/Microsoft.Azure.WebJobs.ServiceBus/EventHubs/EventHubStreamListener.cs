@@ -4,12 +4,12 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.ServiceBus.Messaging;
-using NLog;
 
 namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
 {
@@ -18,8 +18,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
     /// </summary>
     internal class EventHubStreamListener : IEventProcessor, IDisposable
     {
-        private readonly ILogger _logger;
-
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly ITriggeredFunctionExecutor _executor;
 
@@ -54,8 +52,33 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 maxDop: maxDop,
                 capacity: backlog);
 
-            _logger = EventHubLogger.Instance;
             _noop = false;
+            LogEventHubListenerType();
+        }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
+        private static void LogEventHubListenerType()
+        {
+            string dispatcherLogDir = Environment.GetEnvironmentVariable("EVENTHUB_LOG_DIR");
+            FileStream fileStream = null;
+
+            if (!string.IsNullOrEmpty(dispatcherLogDir))
+            {
+                string logFilePath = Path.Combine(dispatcherLogDir, "eventhub_dispatcher.log");
+                try
+                {
+                    fileStream = new FileStream(logFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite,
+                        FileShare.Read);
+                        using (StreamWriter file = new StreamWriter(fileStream))
+                        {
+                            file.WriteLine($"[{DateTime.UtcNow}]: EventHubStreamListener");
+                        }
+                }
+                finally
+                {
+                    fileStream?.Dispose();
+                }
+            }
         }
 
         public async Task CloseAsync(PartitionContext context, CloseReason reason)
@@ -68,15 +91,25 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             {
                 await context.CheckpointAsync().ConfigureAwait(false);
             }
-
-            _logger.Info($"Source: 'EventHubStreamListener', Method: 'CloseAsync', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+            /*
+            string msg =
+                $"Method: CloseAsync, EventHubPath: {context.EventHubPath}, PartitionId: {context.Lease.PartitionId}, LeaseSeqNum: {context.Lease.SequenceNumber}";
+            EventHubLogger.LoggerInstance.LogMessage("EventHubStreamListener", LogType.Info, msg);
+            */
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "OpenAsync")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "PartitionId")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "LeaseSeqNum")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "EventHubPath")]
         public Task OpenAsync(PartitionContext context)
         {
             if (context != null)
             {
-                _logger.Info($"Source: 'EventHubStreamListener', Method: 'OpenAsync', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+                /*
+                string msg = string.Format("Method:OpenAsync, EventHubPath: {0}, PartitionId: {1}, LeaseSeqNum: {2}", context.EventHubPath, context.Lease.PartitionId, context.Lease.SequenceNumber);
+                EventHubLogger.LoggerInstance.LogMessage("EventHubStreamListener", LogType.Info, msg);
+                */
             }
 
             return Task.FromResult(0);
@@ -87,6 +120,7 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         {
             var sw = Stopwatch.StartNew();
             int messageCount = 0;
+            // string msg = null;
 
             try
             {
@@ -137,7 +171,10 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                     }
 
                     await Task.WhenAll(dispatches).ConfigureAwait(false);
-                    _logger.Info($"Source: 'EventHubStreamListener', Method: 'ProcessEventsAsync-SingleDispatch', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+                    /*
+                    msg = $"Method: ProcessEventsAsync-SingleDispatch, EventHubPath: {context.EventHubPath}, PartitionId: {context.Lease.PartitionId}, LeaseSeqNum: {context.Lease.SequenceNumber}";
+                    EventHubLogger.LoggerInstance.LogMessage("EventHubStreamListener", LogType.Info, msg);
+                    */
                 }
                 else
                 {
@@ -158,12 +195,18 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                         message.Dispose();
                     }
 
-                    _logger.Info($"Source: 'EventHubStreamListener', Method: 'ProcessEventsAsync-BatchDispatch', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+                    /*
+                    msg = $"Method: ProcessEventsAsync-BatchDispatch, EventHubPath: {context.EventHubPath}, PartitionId: {context.Lease.PartitionId}, LeaseSeqNum: {context.Lease.SequenceNumber}";
+                    EventHubLogger.LoggerInstance.LogMessage("EventHubStreamListener", LogType.Info, msg);
+                    */
                 }
 
                 // [masimms] TODO - update the checkpoint periodically, not on every batch of messages
                 await context.CheckpointAsync().ConfigureAwait(false);
-                _logger.Info($"Source: 'EventHubStreamListener', Method: 'ProcessEventsAsync-Checkpoint', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+                /*
+                msg = $"Method: ProcessEventsAsync-Checkpoint, EventHubPath: {context.EventHubPath}, PartitionId:'{context.Lease.PartitionId}, LeaseSeqNum: {context.Lease.SequenceNumber}";
+                EventHubLogger.LoggerInstance.LogMessage("EventHubStreamListener", LogType.Info, msg);
+                */
             }
             finally
             {

@@ -3,20 +3,17 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.ServiceBus.Messaging;
-using NLog;
 
 namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
 {
     internal class EventHubBatchListener : IEventProcessor, IDisposable
     {
-        private readonly ILogger _logger;
-
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly ITriggeredFunctionExecutor _executor;
         private readonly bool _singleDispatch;
@@ -32,8 +29,32 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         {
             this._singleDispatch = singleDispatch;
             this._executor = executor;
+            LogEventHubListernerType();
+        }
 
-            _logger = EventHubLogger.Instance;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
+        private static void LogEventHubListernerType()
+        {
+            string dispatcherLogDir = Environment.GetEnvironmentVariable("EVENTHUB_LOG_DIR");
+            FileStream fileStream = null;
+
+            if (!string.IsNullOrEmpty(dispatcherLogDir))
+            {
+                string logFilePath = Path.Combine(dispatcherLogDir, "eventhub_dispatcher.log");
+                try
+                {
+                    fileStream = new FileStream(logFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite,
+                        FileShare.Read);
+                    using (StreamWriter file = new StreamWriter(fileStream))
+                    {
+                        file.WriteLine($"[{DateTime.UtcNow}]: EventHubBatchListener");
+                    }
+                }
+                finally
+                {
+                    fileStream?.Dispose();
+                }
+            }
         }
 
         public async Task CloseAsync(PartitionContext context, CloseReason reason)
@@ -46,9 +67,16 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 await context.CheckpointAsync();
             }
 
-            _logger.Info($"Source: 'EventHubBatchListener', Method: 'CloseAsync', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+            /*
+            string msg =
+                $"Method: 'CloseAsync', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'";
+            EventHubLogger.LoggerInstance.LogMessage("EventHubBatchListener", LogType.Info, msg);
+            */
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "PartitionId")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "LeaseSeqNum")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "OpenAsync")]
         public Task OpenAsync(PartitionContext context)
         {
             Interlocked.Exchange(ref _messagesTimeout, -1);
@@ -56,7 +84,11 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             {
                 Interlocked.Exchange(ref _partitionId, context.Lease.PartitionId);
 
-                _logger.Info($"Source: 'EventHubBatchListener', Method: 'OpenAsync', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+                /*
+                string msg =
+                    $"Method: 'OpenAsync', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'";
+                EventHubLogger.LoggerInstance.LogMessage("EventHubBatchListener", LogType.Info, msg);
+                */
             }
 
             return Task.FromResult(0);
@@ -83,10 +115,13 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         public async Task ProcessEventsAsync(PartitionContext context,
             IEnumerable<EventData> messages)
         {
-            var sw = Stopwatch.StartNew();
+            // var sw = Stopwatch.StartNew();
+            // string msg = null;
 
+            /*
             try
             {
+                */
                 EventHubTriggerInput value = new EventHubTriggerInput
                 {
                     Events = messages.ToArray(),
@@ -129,7 +164,10 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                         Interlocked.Add(ref _messagesComplete, dispatches.Count);
                     }
 
-                    _logger.Info($"Source: 'EventHubBatchListener', Method: 'ProcessEventsAsync-SinglehDispatch', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+                    /*
+                    msg = $"Method: 'ProcessEventsAsync-SinglehDispatch', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'";
+                    EventHubLogger.LoggerInstance.LogMessage("EventHubBatchListener", LogType.Info, msg);
+                    */
                 }
                 else
                 {
@@ -142,7 +180,11 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                     };
 
                     FunctionResult result = await _executor.TryExecuteAsync(input, CancellationToken.None);
-                    _logger.Info($"Source: 'EventHubBatchListener', Method: 'ProcessEventsAsync-BatchDispatch', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+
+                    /*
+                    msg = $"Method: 'ProcessEventsAsync-BatchDispatch', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'";
+                    EventHubLogger.LoggerInstance.LogMessage("EventHubBatchListener", LogType.Info, msg);
+                    */
                 }
 
                 // Dispose all messages to help with memory pressure. If this is missed, the finalizer thread will still get them. 
@@ -156,12 +198,18 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 // For example, it could fail if we lost the lease. That could happen if we failed to renew it due to CPU starvation or an inability 
                 // to make the outbound network calls to renew. 
                 await context.CheckpointAsync();
-                _logger.Info($"Source: 'EventHubBatchListener', Method: 'ProcessEventsAsync-Checkpoint', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'");
+
+                /*
+                msg = $"Method: 'ProcessEventsAsync-Checkpoint', EventHubPath: '{context.EventHubPath}', PartitionId: '{context.Lease.PartitionId}', LeaseSeqNum: '{context.Lease.SequenceNumber}'";
+                EventHubLogger.LoggerInstance.LogMessage("EventHubBatchListener", LogType.Info, msg);
+                */
+            /*
             }
             finally
             {
-                sw.Stop();
+                // sw.Stop();
             }
+            */
         }
 
         public void Dispose()
