@@ -29,11 +29,12 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         {
             this._singleDispatch = singleDispatch;
             this._executor = executor;
-            LogEventHubListernerType();
+            LogEventHubListenerType();
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
-        private static void LogEventHubListernerType()
+        private static void LogEventHubListenerType()
         {
             string dispatcherLogDir = Environment.GetEnvironmentVariable("EVENTHUB_LOG_DIR");
             FileStream fileStream = null;

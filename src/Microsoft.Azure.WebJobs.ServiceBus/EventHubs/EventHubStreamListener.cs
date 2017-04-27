@@ -53,9 +53,10 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 capacity: backlog);
 
             _noop = false;
-            LogEventHubListenerType();
+            // LogEventHubListenerType();
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         private static void LogEventHubListenerType()
         {
