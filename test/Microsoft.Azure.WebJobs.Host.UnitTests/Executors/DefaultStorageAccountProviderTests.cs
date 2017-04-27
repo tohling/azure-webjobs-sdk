@@ -208,27 +208,6 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests.Executors
         }
 
         [Fact]
-        public void StorageAccountOverrides_MultipleLevels()
-        {
-            // param level
-            MethodInfo method = typeof(AccountOverrides).GetMethod("ParamOverride", BindingFlags.NonPublic | BindingFlags.Instance);
-            ParameterInfo parameter = method.GetParameters().Single(p => p.Name == "s");
-            string account = StorageAccountProviderExtensions.GetAccountOverrideOrNull(parameter);
-            Assert.Equal("param", account);
-
-            // method level
-            method = typeof(AccountOverrides).GetMethod("MethodOverride", BindingFlags.NonPublic | BindingFlags.Instance);
-            parameter = method.GetParameters().Single(p => p.Name == "s");
-            account = StorageAccountProviderExtensions.GetAccountOverrideOrNull(parameter);
-            Assert.Equal("method", account);
-
-            method = typeof(AccountOverrides).GetMethod("ClassOverride", BindingFlags.NonPublic | BindingFlags.Instance);
-            parameter = method.GetParameters().Single(p => p.Name == "s");
-            account = StorageAccountProviderExtensions.GetAccountOverrideOrNull(parameter);
-            Assert.Equal("class", account);
-        }
-
-        [Fact]
         public async Task GetAccountAsync_WhenWebJobsStorageAccountNotGeneral_Throws()
         {
             string connectionString = "valid-ignore";
@@ -266,6 +245,26 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests.Executors
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => provider.GetDashboardAccountAsync(CancellationToken.None));
 
             Assert.Equal("Storage account 'name' is of unsupported type 'Premium'. Supported types are 'General Purpose'", exception.Message);
+        }
+
+        [Fact]
+        public async Task GetStorageAccountAsyncTest()
+        {
+            string cxEmpty= "";
+            var accountDefault = new Mock<IStorageAccount>().Object;
+
+            string cxReal = "MyAccount";
+            var accountReal = new Mock<IStorageAccount>().Object;
+
+            var provider = new Mock<IStorageAccountProvider>();
+            provider.Setup(c => c.TryGetAccountAsync(ConnectionStringNames.Storage, CancellationToken.None)).Returns(Task.FromResult<IStorageAccount>(accountDefault));
+            provider.Setup(c => c.TryGetAccountAsync(cxReal, CancellationToken.None)).Returns(Task.FromResult<IStorageAccount>(accountReal));
+
+            var account = await StorageAccountProviderExtensions.GetStorageAccountAsync(provider.Object, cxEmpty, CancellationToken.None);
+            Assert.Equal(accountDefault, account);
+
+            account = await StorageAccountProviderExtensions.GetStorageAccountAsync(provider.Object, cxReal, CancellationToken.None);
+            Assert.Equal(accountReal, account);
         }
 
         private static IConnectionStringProvider CreateConnectionStringProvider(string connectionStringName,
