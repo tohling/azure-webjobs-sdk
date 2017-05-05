@@ -24,6 +24,10 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         private readonly bool _singleDispatch;
         private readonly EventHubDispatcher _dispatcher;
         private readonly bool _noop;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        private readonly int _maxDegreeOfParallelism;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        private readonly int _boundedCapacity;
 
         /// <summary>
         /// The EventHubStreamListener.
@@ -39,8 +43,8 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             ITriggeredFunctionExecutor executor,
             IMessageStatusManager statusManager,
             TimeSpan maxElapsedTime,
-            int maxDop = 256,
-            int backlog = 1024)
+            int maxDop,
+            int backlog)
         {
             this._singleDispatch = singleDispatch;
             this._executor = executor;
@@ -52,13 +56,15 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 maxDop: maxDop,
                 capacity: backlog);
 
+            _maxDegreeOfParallelism = maxDop;
+            _boundedCapacity = backlog;
             _noop = false;
-            // LogEventHubListenerType();
+            // LogEventHubListenerType(_maxDegreeOfParallelism, _boundedCapacity);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
-        private static void LogEventHubListenerType()
+        private static void LogEventHubListenerType(int maxDop, int boundedCapacity)
         {
             string dispatcherLogDir = Environment.GetEnvironmentVariable("EVENTHUB_LOG_DIR");
             FileStream fileStream = null;
@@ -70,10 +76,11 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 {
                     fileStream = new FileStream(logFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite,
                         FileShare.Read);
-                        using (StreamWriter file = new StreamWriter(fileStream))
-                        {
-                            file.WriteLine($"[{DateTime.UtcNow}]: EventHubStreamListener");
-                        }
+                    using (StreamWriter file = new StreamWriter(fileStream))
+                    {
+                        file.WriteLine($"[{DateTime.UtcNow}]: EventHubStreamListener");
+                        file.WriteLine($"[{DateTime.UtcNow}]: Max degree of Parallellism: {maxDop}, Bounded capacity: {boundedCapacity}");
+                    }
                 }
                 finally
                 {

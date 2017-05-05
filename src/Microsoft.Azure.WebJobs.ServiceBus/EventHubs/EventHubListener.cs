@@ -5,6 +5,7 @@ using System;
 using System.Configuration;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.Azure.WebJobs.Host.Listeners;
 using Microsoft.Azure.WebJobs.ServiceBus.EventHubs;
@@ -16,6 +17,8 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
     internal sealed class EventHubListener : IListener, IEventProcessorFactory
     {
         private const string StreamDispatcherEnabledAppSettingsKey = "STREAM_DISPATCHER_ENABLED";
+        private const string StreamDispatcherMaxDopAppSettingsKey = "STREAM_DISPATCHER_MAXDOP";
+        private const string StreamDispatcherBoundedCapacityAppSettingsKey = "STREAM_DISPATCHER_BOUNDED_CAPACITY";
         private readonly ITriggeredFunctionExecutor _executor;
         private readonly EventProcessorHost _eventListener;
         private readonly bool _singleDispatch;
@@ -61,10 +64,32 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
 
             if (streamDispatcherEnabled)
             {
+                int streamDispatcherMaxDop = 64;
+                int streamDispatcherBoundedCapacity = 64;
+                int maxDop;
+                int boundedCapacity;
+
+                string streamDispatcherMaxDopSetting = Environment.GetEnvironmentVariable(StreamDispatcherMaxDopAppSettingsKey);
+                string streamDispatcherBoundedCapacitySetting =
+                    Environment.GetEnvironmentVariable(StreamDispatcherBoundedCapacityAppSettingsKey);
+
+                if (!string.IsNullOrEmpty(streamDispatcherMaxDopSetting) &&
+                    int.TryParse(streamDispatcherMaxDopSetting, out maxDop))
+                {
+                    streamDispatcherMaxDop = maxDop;
+                }
+
+                if (!string.IsNullOrEmpty(streamDispatcherBoundedCapacitySetting) &&
+                    int.TryParse(streamDispatcherBoundedCapacitySetting, out boundedCapacity))
+                {
+                    streamDispatcherBoundedCapacity = boundedCapacity;
+                }
+
                 return new EventHubStreamListener(_singleDispatch,
                     _executor, _statusManager,
                     TimeSpan.FromSeconds(1),
-                    16);
+                    streamDispatcherMaxDop,
+                    streamDispatcherBoundedCapacity);
             }
 
             return new EventHubBatchListener(this._singleDispatch, this._executor);

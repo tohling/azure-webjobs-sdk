@@ -27,12 +27,14 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         private int _messagesTimeout = 0;
         private long _messagesRunning = 0;
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA1801:ReviewUnusedParameters", MessageId = "maxDop")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA1801:ReviewUnusedParameters", MessageId = "capacity")]
         public EventHubDispatcher(
             ITriggeredFunctionExecutor executor,
             IMessageStatusManager statusManager,
             TimeSpan maxElapsedTime,
-            int maxDop = 256,
-            int capacity = 1024)
+            int maxDop,
+            int capacity)
         {
             // TODO - log the dispatcher configuration
 
@@ -52,8 +54,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 {
                     // TODO - make this configurable
                     MaxDegreeOfParallelism = maxDop,
-
-                    // TODO - should capacity == maxdop?
                     BoundedCapacity = capacity
                 });
         }
