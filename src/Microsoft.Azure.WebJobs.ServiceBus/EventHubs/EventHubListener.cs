@@ -2,12 +2,12 @@
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.Azure.WebJobs.Host.Listeners;
+using Microsoft.Azure.WebJobs.ServiceBus.EventHubs;
 using Microsoft.ServiceBus.Messaging;
 
 namespace Microsoft.Azure.WebJobs.ServiceBus
@@ -15,19 +15,24 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
     // Created from the EventHubTrigger attribute to listen on the EventHub. 
     internal sealed class EventHubListener : IListener, IEventProcessorFactory
     {
+        private const string StreamDispatcherEnabledAppSettingsKey = "STREAM_DISPATCHER_ENABLED";
+        private const string StreamDispatcherMaxDopAppSettingsKey = "STREAM_DISPATCHER_MAXDOP";
+        private const string StreamDispatcherBoundedCapacityAppSettingsKey = "STREAM_DISPATCHER_BOUNDED_CAPACITY";
         private readonly ITriggeredFunctionExecutor _executor;
         private readonly EventProcessorHost _eventListener;
         private readonly bool _singleDispatch;
         private readonly EventProcessorOptions _options;
+        private readonly IMessageStatusManager _statusManager;
         private readonly EventHubConfiguration _config;
 
-        public EventHubListener(ITriggeredFunctionExecutor executor, EventProcessorHost eventListener, bool single, EventHubConfiguration config)
+        public EventHubListener(ITriggeredFunctionExecutor executor, EventProcessorHost eventListener, bool single, EventHubConfiguration config, TraceWriter trace)
         {
             this._executor = executor;
             this._eventListener = eventListener;
             this._singleDispatch = single;
-            this._options = config.GetOptions();
-            this._config = config;
+            this._options = options;
+            this._statusManager = statusManager;
+            this._trace = trace;
         }
 
         void IListener.Cancel()
@@ -90,96 +95,37 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
             private readonly CancellationTokenSource _cts = new CancellationTokenSource();
             private readonly Func<PartitionContext, Task> _checkpoint;
 
-            public Listener(EventHubListener parent)
+            if (streamDispatcherEnabled)
             {
-                this._parent = parent;
-                var checkpointStrategy = CreateCheckpointStrategy(parent._config.BatchCheckpointFrequency);
-                _checkpoint = (context) => checkpointStrategy(context.CheckpointAsync);
+                int streamDispatcherMaxDop = 64;
+                int streamDispatcherBoundedCapacity = 64;
+                int maxDop;
+                int boundedCapacity;
+
+                string streamDispatcherMaxDopSetting = Environment.GetEnvironmentVariable(StreamDispatcherMaxDopAppSettingsKey);
+                string streamDispatcherBoundedCapacitySetting =
+                    Environment.GetEnvironmentVariable(StreamDispatcherBoundedCapacityAppSettingsKey);
+
+                if (!string.IsNullOrEmpty(streamDispatcherMaxDopSetting) &&
+                    int.TryParse(streamDispatcherMaxDopSetting, out maxDop))
+                {
+                    streamDispatcherMaxDop = maxDop;
+                }
+
+                if (!string.IsNullOrEmpty(streamDispatcherBoundedCapacitySetting) &&
+                    int.TryParse(streamDispatcherBoundedCapacitySetting, out boundedCapacity))
+                {
+                    streamDispatcherBoundedCapacity = boundedCapacity;
+                }
+
+                return new EventHubStreamListener(_singleDispatch,
+                    this._executor, _statusManager,
+                    TimeSpan.FromSeconds(1),
+                    streamDispatcherMaxDop,
+                    streamDispatcherBoundedCapacity, _trace);
             }
 
-            public async Task CloseAsync(PartitionContext context, CloseReason reason)
-            {
-                this._cts.Cancel(); // Signal interuption to ProcessEventsAsync()
-
-                // Finish listener
-                if (reason == CloseReason.Shutdown)
-                {
-                    await context.CheckpointAsync();
-                }
-            }
-
-            public Task OpenAsync(PartitionContext context)
-            {
-                return Task.FromResult(0);
-            }
-
-            public async Task ProcessEventsAsync(PartitionContext context, IEnumerable<EventData> messages)
-            {
-                EventHubTriggerInput value = new EventHubTriggerInput
-                {
-                    Events = messages.ToArray(),
-                    PartitionContext = context
-                };
-
-                // Single dispatch 
-                if (_parent._singleDispatch)
-                {
-                    int len = value.Events.Length;
-
-                    List<Task> dispatches = new List<Task>();
-                    for (int i = 0; i < len; i++)
-                    {
-                        if (_cts.IsCancellationRequested)
-                        {
-                            // If we stopped the listener, then we may lose the lease and be unable to checkpoint. 
-                            // So skip running the rest of the batch. The new listener will pick it up. 
-                            continue;
-                        }
-                        else
-                        {
-                            TriggeredFunctionData input = new TriggeredFunctionData
-                            {
-                                ParentId = null,
-                                TriggerValue = value.GetSingleEventTriggerInput(i)
-                            };
-                            Task task = this._parent._executor.TryExecuteAsync(input, _cts.Token);
-                            dispatches.Add(task);
-                        }
-                    }
-
-                    // Drain the whole batch before taking more work
-                    if (dispatches.Count > 0)
-                    {
-                        await Task.WhenAll(dispatches);
-                    }
-                }
-                else
-                {
-                    // Batch dispatch
-
-                    TriggeredFunctionData input = new TriggeredFunctionData
-                    {
-                        ParentId = null,
-                        TriggerValue = value
-                    };
-
-                    FunctionResult result = await this._parent._executor.TryExecuteAsync(input, CancellationToken.None);
-                }
-
-                bool hasEvents = false;
-                // Dispose all messages to help with memory pressure. If this is missed, the finalizer thread will still get them. 
-                foreach (var message in messages)
-                {
-                    hasEvents = true;
-                    message.Dispose();
-                }
-
-                // Don't checkpoint if no events. This can reset the sequence counter to 0. 
-                if (hasEvents)
-                {
-                    await _checkpoint(context);
-                }
-            }
-        } // end class Listener 
+            return new EventHubBatchListener(this._singleDispatch, this._executor, _trace);
+        }
     }
 }

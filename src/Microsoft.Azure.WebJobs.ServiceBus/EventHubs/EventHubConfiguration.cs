@@ -7,9 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using Microsoft.Azure.WebJobs.Host;
-using Microsoft.Azure.WebJobs.Host.Bindings;
 using Microsoft.Azure.WebJobs.Host.Config;
-using Microsoft.Azure.WebJobs.Host.Triggers;
 using Microsoft.ServiceBus;
 using Microsoft.ServiceBus.Messaging;
 
@@ -33,6 +31,7 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
         private readonly PartitionManagerOptions _partitionOptions; // optional, used to create EventProcessorHost
 
         private string _defaultStorageString; // set to JobHostConfig.StorageConnectionString
+        private TraceWriter _trace;
         private int _batchCheckpointFrequency = 1;
 
         /// <summary>
@@ -220,6 +219,11 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
                 EventHubConnectionString = receiverConnectionString,
                 StorageConnectionString = storageConnectionString
             };
+        }
+
+        internal TraceWriter GetTraceWriter()
+        {
+            return _trace;
         }
         
         internal EventHubClient GetEventHubClient(string eventHubName, string connection)
@@ -409,7 +413,9 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
 
             // register our binding provider
             context.AddBindingRule<EventHubAttribute>()
-                .BindToCollector(BuildFromAttribute);           
+                .BindToCollector(BuildFromAttribute);
+
+            _trace = context.Trace;
         }
 
         private IAsyncCollector<EventData> BuildFromAttribute(EventHubAttribute attribute)
