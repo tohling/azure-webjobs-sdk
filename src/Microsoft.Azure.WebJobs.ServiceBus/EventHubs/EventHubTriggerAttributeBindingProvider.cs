@@ -8,7 +8,6 @@ using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Azure.WebJobs.Host.Bindings;
 using Microsoft.Azure.WebJobs.Host.Listeners;
 using Microsoft.Azure.WebJobs.Host.Triggers;
-using Microsoft.Azure.WebJobs.ServiceBus.EventHubs;
 using Microsoft.ServiceBus.Messaging;
 
 namespace Microsoft.Azure.WebJobs.ServiceBus
@@ -60,7 +59,7 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
             Func<ListenerFactoryContext, bool, Task<IListener>> createListener =
              (factoryContext, singleDispatch) =>
              {
-                 IListener listener = new EventHubListener(factoryContext.Executor, eventHostListener, singleDispatch, _eventHubConfig, eventHubConfig.GetTraceWriter());
+                 IListener listener = new EventHubListener(factoryContext.Executor, new InMemoryMessageStatusHandler(), eventHostListener, singleDispatch, _eventHubConfig);
                  return Task.FromResult(listener);
              };
 

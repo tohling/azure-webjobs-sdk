@@ -11,7 +11,7 @@ using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.ServiceBus.Messaging;
 using Newtonsoft.Json;
 
-namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
+namespace Microsoft.Azure.WebJobs.ServiceBus
 {
     internal class EventHubDispatcher : IDisposable
     {

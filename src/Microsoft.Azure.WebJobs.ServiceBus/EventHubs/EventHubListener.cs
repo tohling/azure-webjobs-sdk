@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.Azure.WebJobs.Host.Listeners;
-using Microsoft.Azure.WebJobs.ServiceBus.EventHubs;
 using Microsoft.ServiceBus.Messaging;
 
 namespace Microsoft.Azure.WebJobs.ServiceBus
@@ -24,15 +23,17 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
         private readonly EventProcessorOptions _options;
         private readonly IMessageStatusManager _statusManager;
         private readonly EventHubConfiguration _config;
+        private readonly TraceWriter _trace;
 
-        public EventHubListener(ITriggeredFunctionExecutor executor, EventProcessorHost eventListener, bool single, EventHubConfiguration config, TraceWriter trace)
+        public EventHubListener(ITriggeredFunctionExecutor executor, IMessageStatusManager statusManager, EventProcessorHost eventListener, bool single, EventHubConfiguration config)
         {
             this._executor = executor;
             this._eventListener = eventListener;
             this._singleDispatch = single;
+            this._config = config;
             this._options = config.GetOptions();
             this._statusManager = statusManager;
-            this._trace = trace;
+            this._trace = config.GetTraceWriter();
         }
 
         void IListener.Cancel()
@@ -55,45 +56,13 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
         {
             return _eventListener.UnregisterEventProcessorAsync();
         }
-        
+
         // This will get called per-partition. 
         IEventProcessor IEventProcessorFactory.CreateEventProcessor(PartitionContext context)
         {
-            return new Listener(this);
-        }
+            string streamDispatcherEnabledSetting = Environment.GetEnvironmentVariable(StreamDispatcherEnabledAppSettingsKey);
 
-        internal static Func<Func<Task>, Task> CreateCheckpointStrategy(int batchCheckpointFrequency)
-        {
-            if (batchCheckpointFrequency <= 0)
-            {
-                throw new InvalidOperationException("Batch checkpoint frequency must be larger than 0.");
-            }
-            else if (batchCheckpointFrequency == 1)
-            {
-                return (checkpoint) => checkpoint();
-            }
-            else
-            {
-                int batchCounter = 0;
-                return async (checkpoint) =>
-                {
-                    batchCounter++;
-                    if (batchCounter >= batchCheckpointFrequency)
-                    {
-                        batchCounter = 0;
-                        await checkpoint();
-                    }
-                };
-            }
-        }
-
-        // We get a new instance each time Start() is called. 
-        // We'll get a listener per partition - so they can potentialy run in parallel even on a single machine.
-        private class Listener : IEventProcessor
-        {
-            private readonly EventHubListener _parent;
-            private readonly CancellationTokenSource _cts = new CancellationTokenSource();
-            private readonly Func<PartitionContext, Task> _checkpoint;
+            bool streamDispatcherEnabled = !string.IsNullOrEmpty(streamDispatcherEnabledSetting) && string.Equals(streamDispatcherEnabledSetting, "TRUE", StringComparison.OrdinalIgnoreCase);
 
             if (streamDispatcherEnabled)
             {
@@ -118,14 +87,17 @@ namespace Microsoft.Azure.WebJobs.ServiceBus
                     streamDispatcherBoundedCapacity = boundedCapacity;
                 }
 
-                return new EventHubStreamListener(_singleDispatch,
-                    this._executor, _statusManager,
-                    TimeSpan.FromSeconds(1),
-                    streamDispatcherMaxDop,
-                    streamDispatcherBoundedCapacity, _trace);
+                EventHubStreamListenerConfiguration streamListenerConfig = new EventHubStreamListenerConfiguration(
+                    _singleDispatch, 
+                    TimeSpan.FromSeconds(1), 
+                    streamDispatcherMaxDop, 
+                    streamDispatcherBoundedCapacity, 
+                    this._config.BatchCheckpointFrequency);
+
+                return new EventHubStreamListener(this._executor, _statusManager, streamListenerConfig, _trace);
             }
 
-            return new EventHubBatchListener(this._singleDispatch, this._executor, _trace);
+            return new EventHubBatchListener(this._singleDispatch, this._executor, this._config.BatchCheckpointFrequency, _trace);
         }
     }
 }

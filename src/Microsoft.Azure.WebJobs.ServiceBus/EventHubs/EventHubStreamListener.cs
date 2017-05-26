@@ -10,7 +10,7 @@ using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.ServiceBus.Messaging;
 
-namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
+namespace Microsoft.Azure.WebJobs.ServiceBus
 {
     /// <summary>
     /// The EventHubStreamListener class.
@@ -22,45 +22,36 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
 
         private readonly bool _singleDispatch;
         private readonly EventHubDispatcher _dispatcher;
-        private readonly bool _noop;
-        private readonly int _maxDegreeOfParallelism;
-        private readonly int _boundedCapacity;
         private readonly TraceWriter _trace;
+        private readonly Func<PartitionContext, Task> _checkpoint;
 
         /// <summary>
         /// The EventHubStreamListener.
         /// </summary>
-        /// <param name="singleDispatch"></param>
         /// <param name="executor"></param>
         /// <param name="statusManager"></param>
-        /// <param name="maxElapsedTime"></param>
-        /// <param name="maxDop"></param>
-        /// <param name="backlog"></param>
+        /// <param name="streamListenerConfig"></param>
         /// <param name="trace"></param>
         public EventHubStreamListener(
-            bool singleDispatch,
             ITriggeredFunctionExecutor executor,
             IMessageStatusManager statusManager,
-            TimeSpan maxElapsedTime,
-            int maxDop,
-            int backlog,
+            EventHubStreamListenerConfiguration streamListenerConfig,
             TraceWriter trace)
         {
-            this._singleDispatch = singleDispatch;
+            this._singleDispatch = streamListenerConfig.IsSingleDispatch;
             this._executor = executor;
 
             this._dispatcher = new EventHubDispatcher(
                 executor: executor,
                 statusManager: statusManager,
-                maxElapsedTime: maxElapsedTime,
-                maxDop: maxDop,
-                capacity: backlog);
+                maxElapsedTime: streamListenerConfig.MaxElapsedTime,
+                maxDop: streamListenerConfig.MaxDegreeOfParallelism,
+                capacity: streamListenerConfig.BoundedCapacity);
 
-            _maxDegreeOfParallelism = maxDop;
-            _boundedCapacity = backlog;
-            _noop = false;
+            var checkpointStrategy = CreateCheckpointStrategy(streamListenerConfig.BatchCheckpointFrequency);
+            this._checkpoint = (context) => checkpointStrategy(context.CheckpointAsync);
             _trace = trace;
-            _trace.Info($"Event hub stream listener: Max degree of parallelism:{_maxDegreeOfParallelism}, bounded capacity:{_boundedCapacity}");
+            _trace.Info($"Event hub stream listener: Max degree of parallelism:{streamListenerConfig.MaxDegreeOfParallelism}, bounded capacity:{streamListenerConfig.BoundedCapacity}");
         }
 
         public async Task CloseAsync(PartitionContext context, CloseReason reason)
@@ -103,12 +94,6 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
             };
 
             int messageCount = value.Events.Length;
-
-            // No-op
-            if (_noop)
-            {
-                return;
-            }
 
             // Single dispatch 
             if (_singleDispatch)
@@ -154,7 +139,9 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 // Dispose all messages to help with memory pressure. If this is missed, the finalizer thread will still get them. 
             }
 
-            await context.CheckpointAsync().ConfigureAwait(false);
+            await _checkpoint(context).ConfigureAwait(false);
+            
+            // await context.CheckpointAsync().ConfigureAwait(false);
              _trace.Info($"Event hub stream listener: Checkpointed {messageCount} messages.");
 
             foreach (var message in events)
@@ -183,6 +170,31 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         {
             _cts.Dispose();
             _dispatcher.Dispose();
+        }
+
+        internal static Func<Func<Task>, Task> CreateCheckpointStrategy(int batchCheckpointFrequency)
+        {
+            if (batchCheckpointFrequency <= 0)
+            {
+                throw new InvalidOperationException("Stream listener checkpoint frequency must be larger than 0.");
+            }
+            else if (batchCheckpointFrequency == 1)
+            {
+                return (checkpoint) => checkpoint();
+            }
+            else
+            {
+                int batchCounter = 0;
+                return async (checkpoint) =>
+                {
+                    batchCounter++;
+                    if (batchCounter >= batchCheckpointFrequency)
+                    {
+                        batchCounter = 0;
+                        await checkpoint();
+                    }
+                };
+            }
         }
     }
 }

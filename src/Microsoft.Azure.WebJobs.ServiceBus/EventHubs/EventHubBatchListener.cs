@@ -10,7 +10,7 @@ using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.ServiceBus.Messaging;
 
-namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
+namespace Microsoft.Azure.WebJobs.ServiceBus
 {
     // We get a new instance each time Start() is called. 
     // We'll get a listener per partition - so they can potentialy run in parallel even on a single machine.
@@ -20,12 +20,15 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         private readonly ITriggeredFunctionExecutor _executor;
         private readonly bool _singleDispatch;
         private readonly TraceWriter _trace;
+        private readonly Func<PartitionContext, Task> _checkpoint;
 
         public EventHubBatchListener(bool singleDispatch,
-            ITriggeredFunctionExecutor executor, TraceWriter trace)
+            ITriggeredFunctionExecutor executor, int batchCheckpointFrequency, TraceWriter trace)
         {
             this._singleDispatch = singleDispatch;
             this._executor = executor;
+            var checkpointStrategy = CreateCheckpointStrategy(batchCheckpointFrequency);
+            this._checkpoint = (context) => checkpointStrategy(context.CheckpointAsync);
             this._trace = trace;
         }
 
@@ -120,7 +123,7 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
                 // with event hubs anyways. 
                 // For example, it could fail if we lost the lease. That could happen if we failed to renew it due to CPU starvation or an inability 
                 // to make the outbound network calls to renew. 
-                await context.CheckpointAsync();
+                await _checkpoint(context);
             }
 
             _trace.Info($"Event hub batch listener: Checkpointed {messageCount} messages.");
@@ -129,6 +132,31 @@ namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
         public void Dispose()
         {
             _cts.Dispose();
+        }
+
+        internal static Func<Func<Task>, Task> CreateCheckpointStrategy(int batchCheckpointFrequency)
+        {
+            if (batchCheckpointFrequency <= 0)
+            {
+                throw new InvalidOperationException("Batch listener checkpoint frequency must be larger than 0.");
+            }
+            else if (batchCheckpointFrequency == 1)
+            {
+                return (checkpoint) => checkpoint();
+            }
+            else
+            {
+                int batchCounter = 0;
+                return async (checkpoint) =>
+                {
+                    batchCounter++;
+                    if (batchCounter >= batchCheckpointFrequency)
+                    {
+                        batchCounter = 0;
+                        await checkpoint();
+                    }
+                };
+            }
         }
     }
 }

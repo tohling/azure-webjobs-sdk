@@ -6,7 +6,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
+namespace Microsoft.Azure.WebJobs.ServiceBus
 {
     internal struct MessageData
     {

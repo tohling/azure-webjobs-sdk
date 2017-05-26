@@ -4,7 +4,7 @@
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Host.Executors;
 
-namespace Microsoft.Azure.WebJobs.ServiceBus.EventHubs
+namespace Microsoft.Azure.WebJobs.ServiceBus
 {
     /// <summary>
     /// The TaskWrapper template type.

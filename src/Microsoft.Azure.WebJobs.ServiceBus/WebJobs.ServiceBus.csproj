@@ -168,6 +168,7 @@
     <Compile Include="EventHubs\EventHubBatchListener.cs" />
     <Compile Include="EventHubs\EventHubDispatcher.cs" />
     <Compile Include="EventHubs\EventHubStreamListener.cs" />
+    <Compile Include="EventHubs\EventHubStreamListenerConfiguration.cs" />
     <Compile Include="EventHubs\EventHubTriggerAttribute.cs" />
     <Compile Include="EventHubs\EventHubTriggerInput.cs" />
     <Compile Include="EventHubs\EventHubAsyncCollector.cs" />
@@ -183,7 +184,7 @@
     <Compile Include="EventHubs\EventHubTriggerInputBindingStrategy.cs" />
     <Compile Include="EventHubs\IMessageStatusManager.cs" />
     <Compile Include="EventHubs\InMemoryMessageStatusHandler.cs" />
-    <Compile Include="EventHubTaskWrapper.cs" />
+    <Compile Include="EventHubs\EventHubTaskWrapper.cs" />
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="MessagingProvider.cs" />
     <Compile Include="Listeners\NamespaceManagerExtensions.cs" />
